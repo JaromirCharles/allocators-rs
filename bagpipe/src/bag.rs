@@ -5,16 +5,21 @@
 // the MIT license (the LICENSE-MIT file) at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-//! Specification of best-effort bags and implementation for `crossbeam`
+//! Specification of best-effort bags and implementation for [`crossbeam`]
 //! data-structures.
+//!
+//! [`crossbeam`]: ../../crossbeam/index.html
 use super::crossbeam::sync::{TreiberStack, SegQueue, MsQueue};
 use super::crossbeam::mem::epoch;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
-/// Ways that operations on a `SharedWeakBag` or `WeakBag` can fail.
+/// Ways that operations on a [`SharedWeakBag`] or [`WeakBag`] can fail.
 ///
-/// We permit `push` and `pop` operations to exhibit transient failures.
+/// We permit [`push`] and [`pop`] operations to exhibit transient failures.
+///
+/// [`push`]: trait.SharedWeakBag.html#method.push
+/// [`pop`]: trait.SharedWeakBag.html#method.pop
 pub enum PopStatus {
     Empty,
     TransientFailure,
@@ -25,8 +30,10 @@ pub type PopResult<T> = Result<T, PopStatus>;
 
 /// A best-effort Bag data-structure.
 ///
-/// As embodied in the `PopResult` definition, `try_pop` is permitted to
+/// As embodied in the [`PopResult`] definition, [`try_pop`] is permitted to
 /// fail even if the bag in question is not empty.
+///
+/// [`try_pop`]: trait.SharedWeakBag.html#tymethod.try_pop
 pub trait SharedWeakBag {
     type Item;
     /// Returns a new instance of the data-structure.
@@ -34,7 +41,9 @@ pub trait SharedWeakBag {
 
     /// Attempts to push `it` onto the data-structure.
     ///
-    /// If successful, `try_push` will return `true`.
+    /// If successful, [`try_push`] will return `true`.
+    ///
+    /// [`try_push`]: trait.SharedWeakBag.html#tymethod.try_push
     fn try_push(&self, it: Self::Item) -> Result<(), Self::Item>;
 
     /// Attempts to pop a value from the data-structure.
@@ -46,13 +55,16 @@ pub trait SharedWeakBag {
 
     /// A push operation that will not fail.
     ///
-    /// The default implementation of `push` simply calls `try_push`
+    /// The default implementation of [`push`] simply calls [`try_push`]
     /// in a loop. until it succeeds. Depending on the underlying
     /// data-structure this may loop infinitely under some
     /// circumstances.
     ///
-    /// `push` also creates a `Guard` for the duration of the function
+    /// [`push`] also creates a [`Guard`] for the duration of the function
     /// to avoid excessive checking in the hot loop.
+    ///
+    /// [`push`]: trait.SharedWeakBag.html#method.push
+    /// [`try_push`]: trait.SharedWeakBag.html#tymethod.try_push
     fn push(&self, it: Self::Item) {
         let _g = epoch::pin();
         let mut cur_item = it;
@@ -63,7 +75,9 @@ pub trait SharedWeakBag {
 
     /// A pop operation that will not fail.
     ///
-    /// Same caveats apply to those of `push`.
+    /// Same caveats apply to those of [`push`].
+    ///
+    /// [`push`]: trait.SharedWeakBag.html#method.push
     fn pop(&self) -> Option<Self::Item> {
         let _g = epoch::pin();
         loop {
@@ -78,12 +92,12 @@ pub trait SharedWeakBag {
     fn debug(&self) {}
 }
 
-/// An `Arc`-style variant of `SharedWeakBag`.
+/// An `Arc`-style variant of [`SharedWeakBag`].
 ///
 /// This gives implementations the freedom of modifying mutable
-/// local metadata. Any `SharedWeakBag` is also a `WeakBag` if
+/// local metadata. Any [`SharedWeakBag`] is also a `WeakBag` if
 /// behind an `Arc`. Methods on `WeakBag` have the same semantics as
-/// `SharedWeakbag` except that the `try...` methods are permitted to
+/// [`SharedWeakBag`] except that the `try...` methods are permitted to
 /// modify any thread-local state.
 pub trait WeakBag: Clone {
     // TODO(ezrosent): should we keep Clone here?
@@ -143,24 +157,30 @@ impl<B: SharedWeakBag> WeakBag for ArcLike<B> {
 }
 
 
-/// Types that can revoke their membership in a `RevocableWeakBag`.
+/// Types that can revoke their membership in a [`RevocableWeakBag`].
 ///
 /// This is a fairly low-level interface; most of the time it should not be needed. There are also
-/// some performance pitfalls in the way it is implemented in, e.g., the `FAAQueueLowLevel`
+/// some performance pitfalls in the way it is implemented in, e.g., the [`FAAQueueLowLevel`]
 /// data-structure. In that case, it works by pointing the value of `handle` to the cell in which a
 /// value is stored. Revocation is therefore simply a compare-and-swap operation on this value,
 /// attempting to change it to the "poison" sentinel value. If this happens infrequently it is
-/// likely fine. However, excessive calls to `revoke` will lead to `pop` operations slowing down
+/// likely fine. However, excessive calls to [`revoke`] will lead to [`pop`] operations slowing down
 /// because they must skip over poisoned cells.
+///
+/// [`FAAQueueLowLevel`]: ../queue/struct.FAAQueueLowLevel.html
+/// [`pop`]: trait.SharedWeakBag.html#method.pop
+/// [`revoke`]: ../struct.BagPipe.html#method.revoke
 pub trait Revocable {
-    /// A reference to an `AtomicUsize` value that can be used by a `revoke` implementation.
+    /// A reference to an [`AtomicUsize`] value that can be used by a [`revoke`] implementation.
     ///
     /// The intended use for this is to set aside a word of memory in `Self` to hold a reference to
-    /// its location in a `SharedWeakBag`. That way, the underlying data-structure can revoke
+    /// its location in a [`SharedWeakBag`]. That way, the underlying data-structure can revoke
     /// membership with a single CAS.
     ///
     /// This interface is low-level; it may change depending on use and demand for queues with this
     /// feature.
+    ///
+    /// [`revoke`]: ../struct.BagPipe.html#method.revoke
     fn handle(&self) -> &AtomicUsize;
 }
 
@@ -179,7 +199,9 @@ impl<T: Revocable> Revocable for *mut T {
     }
 }
 
-/// A `SharedWeakBag` that can attempt to revoke `push` operations.
+/// A [`SharedWeakBag`] that can attempt to revoke [`push`] operations.
+///
+/// [`push`]: trait.SharedWeakBag.html#method.push
 pub trait RevocableWeakBag: SharedWeakBag
 where
     Self::Item: Revocable,

@@ -5,13 +5,15 @@
 // the MIT license (the LICENSE-MIT file) at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-//! Implements the `BagPipe` data structure, along with its core components.
+//! Implements the [`BagPipe`] data structure, along with its core components.
 //!
 //! A `BagPipe` is a concurrent pool data-structure optimized for
 //! throughput and not much else. The core idea is to have a large
 //! number of concurrent queues and stacks, along with a way of
 //! load-balancing them in a coordination-free way that avoids wasting
 //! resources and keeping contention low.
+//!
+//! [`BagPipe`]: struct.BagPipe.html
 //!
 //! # Example
 //! For general-purpose use, the `BagPipe` has a somewhat low-level
@@ -35,34 +37,44 @@
 //!
 //! If you are passing a word-sized type, it is possible to reduce
 //! allocation overhead by storing the data in-line. To do this,
-//! replace `GeneralYC` with `YangCrummeyQueue` in the type parameter
-//! for `BagPipe`: this will switch out the underlying backing
+//! replace [`GeneralYC`] with [`YangCrummeyQueue`] in the type parameter
+//! for [`BagPipe`]: this will switch out the underlying backing
 //! data-structure.
+//! 
+//! [`GeneralYC`]: queue/struct.GeneralYC.html
+//! [`YangCrummeyQueue`]: queue/struct.YangCrummeyQueue.html
 //!
 //! The API currently supports `try...` versions of methods,
 //! allowing data-structures to signal lack of progress due to high
-//! contention. It also provides `push` and `pop` methods that will loop
+//! contention. It also provides [`push`] and [`pop`] methods that will loop
 //! until they succeed (or do something more intelligent).
+//!
+//! [`push`]: bag/trait.SharedWeakBag.html#method.push
+//! [`pop`]: bag/trait.SharedWeakBag.html#method.pop
 //!
 //! # Guarantees
 //!
 //! The data-structures given here are all non-blocking. The `try`
-//! methods using `YangCrummeyQueue` and `GeneralYC` will return in a
+//! methods using [`YangCrummeyQueue`] and [`GeneralYC`] will return in a
 //! bounded number of steps, but there is no guarantee they will succeed
 //! except if they execute in isolation (i.e. Obstruction Freedom when
-//! called in a loop). In constrast, those using `FAAArrayQueue` have a
+//! called in a loop). In constrast, those using [`FAAArrayQueue`] have a
 //! lock-free progress guarantee. In general, a `BagPipe` inherits its
-//! progress guarantees from its underlying `SharedWeakBag`, but it may
+//! progress guarantees from its underlying [`SharedWeakBag`], but it may
 //! return arbitrary values with respect to their ordering guarantees.
+//!
+//! [`FAAArrayQueue`]: queue/struct.FAAArrayQueue.html
 //!
 //! `BagPipe`'s emptiness check is not currently linearizable, but I
 //! believe it is still serializable. In other words, it is possible
 //! to re-order the execution history of the data-structure to respect
-//! program order, but calls returning `Empty` may be re-ordered to a
+//! program order, but calls returning [`Empty`] may be re-ordered to a
 //! time before or after the real execution time of the operation. A
 //! marginally slower linearizable emptiness check would not be
 //! difficult to engineer, and it will hopefully be added to the API
 //! soon.
+//!
+//! [`Empty`]: https://doc.rust-lang.org/std/iter/fn.empty.html
 
 extern crate crossbeam;
 extern crate num_cpus;
@@ -121,10 +133,13 @@ impl<T> BagCleanup for DummyCleanup<T> {
 /// A concurrent bag data-structure built from sharding requests over
 /// other bags.
 ///
-/// `BagPipe` implements both `SharedWeakBag` and `WeakBag`. Using this
-/// as a `SharedWeakBag` tends to perform worse. Note that this should
-/// never be used with `Arc<BagPipe>`, which will be much slower and
+/// `BagPipe` implements both [`SharedWeakBag`] and [`WeakBag`]. Using this
+/// as a [`SharedWeakBag`] tends to perform worse. Note that this should
+/// never be used with [`Arc<BagPipe>`][Arc], which will be much slower and
 /// have an increased failure rate.
+///
+/// [`SharedWeakBag`]: bag/trait.SharedWeakBag.html
+/// [`WeakBag`]: bag/trait.WeakBag.html
 pub struct BagPipe<B: SharedWeakBag, Clean>
 where
     Clean: BagCleanup<Item = B::Item>,
@@ -209,10 +224,10 @@ impl<B: SharedWeakBag, Clean: BagCleanup<Item = B::Item>> BagPipe<B, Clean> {
         }
     }
 
-    /// Return a guess of the current `BagPipe` size.
+    /// Return a guess of the current [`BagPipe`] size.
     ///
     /// This is implemented in a way that seeks to reduce overhead as
-    /// much as possible. Currently there are 4 `AtomicIsize` counters
+    /// much as possible. Currently there are 4 [`AtomicIsize`] counters
     /// in the global `BagPipeState` struct; one of these is updated
     /// when a thread accumulates a local diff (i.e. net pushes or pops)
     /// greater than a certain small constant. A thread querying the
@@ -225,6 +240,9 @@ impl<B: SharedWeakBag, Clean: BagCleanup<Item = B::Item>> BagPipe<B, Clean> {
     /// threads that have pushed or popped from the data-structure have
     /// relinquished a handle on it. Note that this term usually refers
     /// to a sufficiently long period of inactivity.
+    ///
+    /// [`BagPipe`]: struct.BagPipe.html
+    /// [`AtomicIsize`]: https://doc.rust-lang.org/std/sync/atomic/struct.AtomicIsize.html
     pub fn size_guess(&self) -> isize {
         use std::cmp;
         let mut total = 0;
@@ -363,14 +381,18 @@ impl<B: RevocableWeakBag, Clean: BagCleanup<Item = B::Item>> BagPipe<B, Clean>
 where
     B::Item: Revocable,
 {
-    /// Attempt to revoke `it` from membership in the `BagPipe`.
+    /// Attempt to revoke `it` from membership in the [`BagPipe`].
     ///
-    /// This is simply an implementation of portions of the `Revocable`
+    /// This is simply an implementation of portions of the [`Revocable`]
     /// trait for a `BagPipe`.  We don't implement the trait here
-    /// because it inherits from SharedWeakBag and BagPipes have
+    /// because it inherits from [`SharedWeakBag`] and BagPipes have
     /// unexpected behavior when used without the _mut() methods. This
     /// problem could be solved if we had "or" trait inheritance, but
     /// that could be more trouble than its worth :-)
+    ///
+    /// [`Revocable`]: bag/trait.Revocable.html
+    /// [`BagPipe`]: struct.BagPipe.html
+    /// [`SharedWeakBag`]: bag/trait.SharedWeakBag.html
     pub unsafe fn revoke(it: &B::Item) -> bool {
         B::revoke(it)
     }

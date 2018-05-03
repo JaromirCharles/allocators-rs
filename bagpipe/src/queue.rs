@@ -7,24 +7,24 @@
 
 //! Implementation of two non-blocking queues.
 //!
-//! - `GeneralYC`, a fast, best-effort queue that will fail
-//!   occasionally. See documentation of `YangCrummeyQueue` for more
+//! - [`GeneralYC`], a fast, best-effort queue that will fail
+//!   occasionally. See documentation of [`YangCrummeyQueue`] for more
 //!   information on the algorithm.
-//! - `FAAArrayQueue`, a similar design reimplemented in rust. This is
+//! - [`FAAArrayQueue`], a similar design reimplemented in rust. This is
 //!   lock-free and always succeeds (i.e. it loops). See documentation on
-//!   `FAAQueueLowLevel` for more information on the algorithm
+//!   [`FAAQueueLowLevel`] for more information on the algorithm.
 //!
 //! Both of these data-structures are generated from lower-level
 //! implementations that operate only on word-sized types for efficient
 //! atomic operations.
 //!
-//! The `generalize` macro takes these low-level `SharedWeakBag`s only
-//! operating on word-sized `Node`s and lifts them to `SharedWeakBag`s
+//! The `generalize` macro takes these low-level [`SharedWeakBag`]s only
+//! operating on word-sized `Node`s and lifts them to [`SharedWeakBag`]s
 //! operating on arbitrary types by boxing them and passing the
 //! underlying bag a raw pointer.
 //!
-//! We expose the low-level data-structures (`FAAQueueLowLevel`
-//! and `YangCrummeyQueue` for `FAAArrayQueue` and `GeneralYC`,
+//! We expose the low-level data-structures ([`FAAQueueLowLevel`]
+//! and [`YangCrummeyQueue`] for [`FAAArrayQueue`] and [`GeneralYC`],
 //! respectively) both for benchmarking purposes and to facilitate
 //! documentation; it does not seem possible to generate custom doc
 //! comments for those data-structures.
@@ -183,17 +183,17 @@ const SENTINEL: usize = !0;
 
 /// A scalable queue with fairly weak guarantees.
 ///
-/// The `YangCrummeyQueue` is a `SharedWeakBag` based on the
+/// The [`YangCrummeyQueue`] is a [`SharedWeakBag`] based on the
 /// obstruction-free queue described in Yang and Crummey's ["A Wait-Free
 /// Queue as Fast as Fetch and Add"][1] as well as Morisson and Afek's
 /// ["Fast Concurrent Queues For X86 Processors"][2]. In the common case
 /// a single push or pop is a fetch-add, a load, some bit-shifts and an
-/// uncontended CAS. If called in a loop, `try_push` and `try_pop` are
+/// uncontended CAS. If called in a loop, [`try_push`] and [`try_pop`] are
 /// both obstruction-free.
 ///
 /// Note that pushing values with the same byte-level representation as
 /// `SENTINEL` (all 1s) or `SENTINEL-1` is undefined; an assertion will
-/// catch this in a build with `debug_assert` enabled.
+/// catch this in a build with [`debug_assert`] enabled.
 ///
 /// ## Why Name it after Yang and Crummey?
 ///
@@ -206,6 +206,9 @@ const SENTINEL: usize = !0;
 ///
 /// [1]: http://chaoran.me/assets/pdf/wfq-ppopp16.pdf
 /// [2]: http://www.cs.tau.ac.il/~mad/publications/ppopp2013-x86queues.pdf
+/// [`try_push`]: ../bag/trait.SharedWeakBag.html#tymethod.try_push
+/// [`try_pop`]: ../bag/trait.SharedWeakBag.html#tymethod.try_pop
+/// [`debug_assert`]: https://doc.rust-lang.org/std/macro.debug_assert.html
 pub struct YangCrummeyQueue<T: Node> {
     head_index: CachePadded<AtomicUsize>,
     tail_index: CachePadded<AtomicUsize>,
@@ -460,23 +463,27 @@ impl<T: Node> Segment<T> {
 
 /// Another fetch-add based concurrent queue.
 ///
-/// This queue is based on the `FAAArrayQueue` of Pedro Ramalhete
+/// This queue is based on the [`FAAArrayQueue`] of Pedro Ramalhete
 /// over at [Concurrency Freaks][1].  The implementation here is a
 /// direct adaptation of the C++ code for the algorithm, the only
 /// difference being that we perform the same "decomposition" of the
-/// algorithm into its inner loop so that the `BagPipe` can take better
-/// advantage of contention information. Still, the default `push` and
-/// `pop` implementations are lock-free for the same reason that the
-/// `FAAArrayQueue` is lock-free. This means it has stronger progress
-/// guarantees than the `YangCrummeyQueue`.
+/// algorithm into its inner loop so that the [`BagPipe`] can take better
+/// advantage of contention information. Still, the default [`push`] and
+/// [`pop`] implementations are lock-free for the same reason that the
+/// [`FAAArrayQueue`] is lock-free. This means it has stronger progress
+/// guarantees than the [`YangCrummeyQueue`].
+///
+/// [`push`]: ../bag/trait.SharedWeakBag.html#method.push
+/// [`pop`]: ../bag/trait.SharedWeakBag.html#method.pop
 ///
 /// ## This or `YangCrummeyQueue`
 ///
-/// It depends. The `FAAArrayQueue` generally performs better on its
-/// own, but it lags behind the `YangCrummeyQueue` at 32 cores for some
-/// workloads in a `BagPipe` configuration. If performance is a chief
+/// It depends. The [`FAAArrayQueue`] generally performs better on its
+/// own, but it lags behind the [`YangCrummeyQueue`] at 32 cores for some
+/// workloads in a [`BagPipe`] configuration. If performance is a chief
 /// concern, it is worth benchmarking both.
 ///
+/// [`BagPipe`]: ../struct.BagPipe.html
 /// [1]: http://concurrencyfreaks.blogspot.com/2016/11/faaarrayqueue-mpmc-lock-free-queue-part.html
 pub struct FAAQueueLowLevel<T: Node, F = ()>
 where

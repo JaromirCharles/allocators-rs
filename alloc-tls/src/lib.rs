@@ -10,6 +10,7 @@
 //! `alloc-tls` implements thread-local storage that, unlike the standard library's
 //! implementation, is safe for use in a global allocator.
 
+
 #![feature(allow_internal_unsafe)]
 #![feature(const_fn)]
 #![feature(const_ptr_null_mut)]
@@ -54,13 +55,16 @@ use std::ptr;
 /// - When the thread exits, the variable moves into the *dropped* state, and the variable is
 ///   dropped.
 ///
-/// Thread-local variables can be accessed using the `with` method. If the variable is in the
+/// Thread-local variables can be accessed using the [`with`] method. If the variable is in the
 /// *uninitialized* or *initialized* states, the variable can be accessed. Otherwise, it cannot,
 /// and it is the caller's responsibility to figure out a workaround for its task that does not
 /// involve accessing the thread-local variable.
 ///
-/// Note that this macro uses the `#[thread_local]` attribute; in order to use it, you must put
+/// Note that this macro uses the [`#[thread_local]`] attribute; in order to use it, you must put
 /// `#![feature(thread_local)]` at the root of your crate.
+///
+/// [`with`]: struct.TLSSlot.html#method.with
+/// [`#[thread_local]`]: https://doc.rust-lang.org/std/macro.thread_local.html
 #[macro_export]
 #[allow_internal_unsafe]
 macro_rules! alloc_thread_local {
@@ -117,15 +121,18 @@ pub use std::intrinsics::{likely, unlikely};
 
 /// Access the TLS slot with maximum performance.
 ///
-/// `alloc_tls_fast_with` is the macro version of `TLSSlot`'s `with` method. In practice, we have
+/// `alloc_tls_fast_with` is the macro version of [`TLSSlot`]'s [`with`] method. In practice, we have
 /// found that that method is not always optimized as much as it could be, and using a macro is
 /// friendlier to the optimizer.
 ///
-/// `$slot` is the `TLSSlot` to be accessed. `$blk` is a block of code that will be executed,
+/// `$slot` is the [`TLSSlot`] to be accessed. `$blk` is a block of code that will be executed,
 /// and the TLS value will be bound to a variable named `$name` in that block.
 ///
 /// Note that this macro uses core intrinsics; in order to use it, you must put
 /// `#![feature(core_intrinsics)]` at the root of your crate.
+///
+/// [`TLSSlot`]: struct.TLSSlot.html
+/// [`with`]: struct.TLSSlot.html#method.with
 ///
 /// # Safety
 ///
@@ -186,8 +193,10 @@ macro_rules! alloc_tls_fast_with {
 
 /// A slot for a thread-local variable.
 ///
-/// A `TLSSlot` should be initialized using the `internal_thread_local!` macro. See its
+/// A `TLSSlot` should be initialized using the [`internal_thread_local!`] macro. See its
 /// documentation for details on declaring and using thread-local variables.
+///
+/// [`internal_thread_local!`]: macro.alloc_thread_local.html
 pub struct TLSSlot<T> {
     // TODO: Use repr(C) to ensure that this field comes first so that we don't need to do extra
     // offset math to access it?
@@ -217,10 +226,10 @@ impl<T> TLSSlot<T> {
     /// Access the TLS slot.
     ///
     /// `with` accepts a function that will be called with a reference to the TLS value. If the
-    /// slot is in the *initializing* or *dropped* state, `with` will return `None` without
+    /// slot is in the *initializing* or *dropped* state, `with` will return [`None`] without
     /// invoking `f`. If the slot is in the *uninitialized* state, `with` will initialize the value
     /// and then call `f`. If the slot is in the *initialized* state, `with` will call `f`. In
-    /// either of these last two cases, `with` will return `Some(r)`, where `r` is the value
+    /// either of these last two cases, `with` will return [`Some(r)`][Some], where `r` is the value
     /// returned from the call to `f`.
     ///
     /// # Safety
